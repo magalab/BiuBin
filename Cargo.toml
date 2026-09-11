@@ -1,0 +1,28 @@
+[workspace]
+members = ["crates/core", "crates/app"]
+resolver = "2"
+
+[workspace.package]
+edition = "2024"
+license = "MIT"
+version = "0.1.0"
+
+[workspace.dependencies]
+async-graphql = { version = "7.2.1", default-features = false, features = ["dynamic-schema"] }
+async-graphql-axum = "7.2.1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+time = { version = "0.3", features = ["formatting"] }
+prost = "0.14"
+rumqttd = "0.20"
+rumqttc = { version = "0.24", features = ["websocket"] }
+rustls-pemfile = "2"
+tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
+tokio-stream = { version = "0.1", features = ["net"] }
+tokio-tungstenite = "0.29"
+tokio-rustls = "0.26"
+thrift = "0.24.0"
+tower = { version = "0.5", features = ["util"] }
+tonic = { version = "0.14", features = ["transport", "tls-ring"] }
+tonic-prost = "0.14"
+tonic-reflection = "0.14"

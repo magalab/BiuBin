@@ -1,0 +1,10 @@
+.git
+.gitignore
+target
+web/node_modules
+web/dist
+certs/dev/*.pem
+certs/dev/*.key
+certs/dev/*.csr
+certs/dev/*.srl
+*.log

@@ -1,0 +1,42 @@
+[package]
+name = "biubin"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "biubin"
+path = "src/main.rs"
+
+[dependencies]
+async-stream = "0.3"
+async-graphql.workspace = true
+async-graphql-axum.workspace = true
+axum = { version = "0.8", features = ["ws"] }
+base64 = "0.22"
+biubin-core = { path = "../core" }
+flate2 = "1"
+futures-util = "0.3"
+prost.workspace = true
+rumqttd.workspace = true
+rustls-pemfile.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+tokio-stream.workspace = true
+tokio-rustls.workspace = true
+thrift.workspace = true
+tonic.workspace = true
+tonic-prost.workspace = true
+tonic-reflection.workspace = true
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+
+[build-dependencies]
+protoc-bin-vendored = "3"
+tonic-prost-build = "0.14"
+
+[dev-dependencies]
+rumqttc.workspace = true
+tokio-tungstenite.workspace = true
+tower.workspace = true

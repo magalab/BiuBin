@@ -1,0 +1,10 @@
+/target/
+/tmp/
+/web/node_modules/
+/web/dist/
+*.log
+.DS_Store
+/certs/dev/*.pem
+/certs/dev/*.key
+/certs/dev/*.csr
+/certs/dev/*.srl
