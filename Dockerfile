@@ -16,6 +16,6 @@ RUN cargo +1.97.1 build --release --locked --bin biubin
 
 FROM debian:bookworm-slim
 COPY --from=builder /src/target/release/biubin /usr/local/bin/biubin
-EXPOSE 8080 9000 9001 7000 7001 1883 1884 1885 8883 8083 9090
+EXPOSE 8080 9000 9001 7000 7001/udp 1883 1884 1885 8883 8083 9090
 HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=3 CMD ["/usr/local/bin/biubin", "healthcheck"]
 ENTRYPOINT ["/usr/local/bin/biubin"]

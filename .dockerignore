@@ -7,4 +7,6 @@ certs/dev/*.pem
 certs/dev/*.key
 certs/dev/*.csr
 certs/dev/*.srl
+/.env
+/tmp/
 *.log

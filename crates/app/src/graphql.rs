@@ -1,7 +1,17 @@
+use crate::http::{
+    middleware::{acquire_connection_slot, request_id},
+    response::{json_response, response_with_request_id},
+};
+use crate::state::AppState;
+use async_graphql::http::ALL_WEBSOCKET_PROTOCOLS;
 use async_graphql::{
     Context, Error, ErrorExtensions, InputObject, Json, Object, Result, Schema, SimpleObject,
     Subscription,
 };
+use async_graphql_axum::{GraphQLProtocol, GraphQLRequest, GraphQLResponse, GraphQLWebSocket};
+use axum::extract::{State, WebSocketUpgrade};
+use axum::http::{HeaderMap, StatusCode};
+use axum::response::{IntoResponse, Response};
 use biubin_core::{Config, Event, EventStore};
 use futures_util::Stream;
 use serde_json::{Value, json};
@@ -37,6 +47,48 @@ pub fn annotate_errors(response: &mut async_graphql::Response, syntax_valid: boo
                 .set("code", code);
         }
     }
+}
+
+pub(crate) async fn graphql_handler(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    request: GraphQLRequest,
+) -> Response {
+    let request_id = request_id(&headers, &state);
+    state.events.push("graphql", "request_received", "GraphQL");
+    let mut request = request.into_inner();
+    let syntax_valid = request.parsed_query().is_ok();
+    let mut graphql_response = state.graphql.execute(request).await;
+    annotate_errors(&mut graphql_response, syntax_valid);
+    let response: GraphQLResponse = graphql_response.into();
+    response_with_request_id(response.into_response(), request_id)
+}
+
+pub(crate) async fn graphql_ws_handler(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    protocol: GraphQLProtocol,
+    upgrade: WebSocketUpgrade,
+) -> Response {
+    let request_id = request_id(&headers, &state);
+    let Ok(permit) = acquire_connection_slot(&state, &request_id) else {
+        return json_response(
+            StatusCode::SERVICE_UNAVAILABLE,
+            request_id,
+            json!({"error": "connection limit reached"}),
+        );
+    };
+    let schema = state.graphql.clone();
+    let response = upgrade
+        .protocols(ALL_WEBSOCKET_PROTOCOLS)
+        .on_upgrade(move |socket| async move {
+            let _permit = permit;
+            GraphQLWebSocket::new(socket, schema, protocol)
+                .serve()
+                .await;
+        })
+        .into_response();
+    response_with_request_id(response, request_id)
 }
 
 #[derive(Default)]

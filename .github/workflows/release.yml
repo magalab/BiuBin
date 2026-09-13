@@ -1,0 +1,84 @@
+name: Binary release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  web:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - uses: actions/upload-artifact@v7
+        with:
+          name: biubin-web-dist
+          path: web/dist
+
+  binaries:
+    needs: web
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            target: x86_64-unknown-linux-gnu
+            runner: ubuntu-24.04
+          - arch: arm64
+            target: aarch64-unknown-linux-gnu
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions-rust-lang/setup-rust-toolchain@v2
+        with:
+          toolchain: 1.97.0
+      - uses: actions/download-artifact@v8
+        with:
+          name: biubin-web-dist
+          path: web/dist
+      - name: Install target
+        run: rustup target add ${{ matrix.target }}
+      - name: Build binary
+        run: cargo build --release --locked --bin biubin --target ${{ matrix.target }}
+      - name: Package binary
+        run: |
+          package_dir=$(mktemp -d)
+          mkdir -p dist
+          cp target/${{ matrix.target }}/release/biubin "$package_dir/biubin"
+          tar -C "$package_dir" -czf dist/biubin-${{ matrix.target }}.tar.gz biubin
+          sha256sum dist/biubin-${{ matrix.target }}.tar.gz > dist/biubin-${{ matrix.target }}.tar.gz.sha256
+      - uses: actions/upload-artifact@v7
+        with:
+          name: biubin-binary-${{ matrix.arch }}
+          path: dist/
+
+  release:
+    needs: binaries
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: biubin-binary-*
+          path: release
+          merge-multiple: true
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v3
+        with:
+          files: release/*
+          generate_release_notes: true
+          fail_on_unmatched_files: true

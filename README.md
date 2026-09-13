@@ -28,9 +28,22 @@ embedded fallback page.
 
 ## Configuration
 
-Configuration is provided through `BIUBIN_*` environment variables. Setting a
-listener port to `0` asks the operating system for a free port; `info` and the
-startup log report the selected port rather than the configured `0`.
+Configuration is provided through `BIUBIN_*` environment variables. The
+repository includes [`.env.example`](.env.example) as a reference; the binary
+does not load `.env` automatically, so export the variables in your shell
+before starting it:
+
+```sh
+cp .env.example .env
+set -a
+. ./.env
+set +a
+cargo run --bin biubin -p biubin
+```
+
+Setting a listener port to `0` asks the operating system for a free port;
+`info` and the startup log report the selected port rather than the configured
+`0`.
 
 The current binary includes HTTP, gRPC (h2c and optional TLS/mTLS), WebSocket,
 SSE, TCP/UDP echo, GraphQL, Thrift, and an optional embedded MQTT broker. MQTT
@@ -112,3 +125,21 @@ The local no-public-network black-box check is:
 ```sh
 bash scripts/blackbox.sh
 ```
+
+## CI and releases
+
+GitHub Actions runs the frontend, Rust, and black-box checks for pushes and
+pull requests. A push to `main` or a version tag also builds and publishes a
+multi-architecture image to `ghcr.io/magalab/biubin`.
+
+Pushing a version tag such as `v0.1.0` creates a GitHub release containing
+Linux `amd64` and `arm64` binary archives with SHA-256 checksums.
+
+## Source layout
+
+- `crates/core/src/` contains shared configuration, bounded event storage, and readiness state.
+- `crates/app/src/lifecycle.rs` owns process startup, listener binding, task lifecycle, and shutdown.
+- `crates/app/src/http/` contains the router, middleware, control-plane endpoints, HTTP fixtures, WebSocket, and SSE handlers.
+- `crates/app/src/{grpc,tcp,udp,mqtt,thrift}.rs` contains the protocol runtimes.
+- `crates/app/examples/` contains protocol smoke clients; `crates/app/tests/` contains cross-module Rust integration tests.
+- `proto/` and `thrift/` are the wire-contract sources; `web/` is the Svelte control plane embedded into the binary at build time.
