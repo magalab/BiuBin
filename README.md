@@ -55,13 +55,20 @@ listener; no second runtime service is required.
 Useful endpoints and listeners:
 
 - `GET /api/v1/info` and `GET /api/v1/capabilities` describe the running service.
+- `/api/v1/capabilities` returns a JSON document whose endpoint entries normally
+  use a `methods` array; single-method entries contain one value, and `*`
+  means any method or protocol operation. The current pre-release capabilities
+  schema is version `1`. An optional `same_contract_as` field points to an endpoint with
+  the same response contract: the JSON shape and echo behavior match, while
+  request-derived fields such as `uri` may differ between paths.
 - Root request-echo endpoints are available at `GET/HEAD /get`, `POST /post`,
   `PUT /put`, `PATCH /patch`, `DELETE /delete`, and any method on `/anything`,
   `/anything/`, or an arbitrary `/anything/...` subpath. These endpoints return
   BiuBin's request-echo JSON; method-specific endpoints reject other methods
   with `405`. This root request-echo namespace is reserved for these routes;
-  the original `/http/anything/{*path}` endpoint remains the stable
-  BiuBin-specific API for future fixture expansion.
+  `/http/anything`, `/http/anything/`, and `/http/anything/...` remain the
+  stable BiuBin-specific API for future fixture expansion. Both namespaces use
+  the same BiuBin request-echo JSON contract.
 - HTTP, WebSocket, SSE and GraphQL HTTP are on `8080`; GraphQL subscriptions use `ws://127.0.0.1:8080/graphql/ws`.
 - gRPC h2c is on `9000`; optional gRPC TLS/mTLS is on `9001`; TCP/UDP echo is on `7000`/`7001`; Thrift binary is on `9090`.
 - Socket fault behavior is deterministic and configuration-driven: `BIUBIN_TCP_DELAY_MS`, `BIUBIN_TCP_CLOSE_AFTER` (0 means keep open), `BIUBIN_TCP_READ_LIMIT`, `BIUBIN_UDP_DELAY_MS`, and `BIUBIN_UDP_DROP_PERCENT` (periodic 100-packet schedule).

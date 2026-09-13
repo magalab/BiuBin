@@ -242,6 +242,7 @@ pub(crate) async fn http_basic_auth(
     )
 }
 
+/// The root request-echo contract uses an empty `path` for `/anything` and `/anything/`.
 pub(crate) async fn http_anything_root(
     State(state): State<AppState>,
     method: Method,

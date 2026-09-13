@@ -50,12 +50,18 @@ TCP/UDP echo、GraphQL、Thrift，以及一个可选的内置 MQTT Broker。MQTT
 常用端点和监听器：
 
 - `GET /api/v1/info` 和 `GET /api/v1/capabilities` 用于描述正在运行的服务。
+- `/api/v1/capabilities` 返回描述服务的 JSON 文档。端点条目通常使用单个
+  `methods` 数组；单方法端点包含一个值，`*` 表示任意方法或协议操作。
+  当前仍为预发布阶段，capabilities schema 版本为 `1`。可选的 `same_contract_as` 字段指向
+  具有相同响应契约的另一个端点：JSON 结构和回显行为一致，但 `uri` 等依赖
+  请求路径的字段可能不同。
 - 根路径提供请求回显端点：`GET/HEAD /get`、`POST /post`、`PUT /put`、
   `PATCH /patch`、`DELETE /delete`，以及支持任意方法的 `/anything`、
   `/anything/` 和任意 `/anything/...` 子路径。这些端点返回 BiuBin 自有的
   请求回显 JSON；方法专用端点使用其他方法时返回 `405`。根路径请求回显
-  命名空间专用于这些端点；原有的 `/http/anything/{*path}` 仍作为稳定的
-  BiuBin 专用 API，供未来扩展 fixture 使用。
+  命名空间专用于这些端点；`/http/anything`、`/http/anything/` 以及
+  `/http/anything/...` 仍作为稳定的 BiuBin 专用 API，供未来扩展 fixture
+  使用。两个命名空间使用相同的 BiuBin 请求回显 JSON 契约。
 - HTTP、WebSocket、SSE 和 GraphQL HTTP 使用 `8080`；GraphQL subscription 使用
   `ws://127.0.0.1:8080/graphql/ws`。
 - gRPC h2c 使用 `9000`；可选的 gRPC TLS/mTLS 使用 `9001`；TCP/UDP echo

@@ -20,6 +20,7 @@ pub(crate) fn router(state: AppState) -> Router {
         .route("/graphql/ws", get(graphql::graphql_ws_handler))
         // Root request-echo aliases. Keep the /http namespace below as the
         // stable BiuBin-specific fixture API.
+        // Axum's `get(...)` router also accepts HEAD and removes the response body.
         .route("/get", get(fixtures::http_anything_root))
         .route("/post", post(fixtures::http_anything_root))
         .route("/put", put(fixtures::http_anything_root))
@@ -43,6 +44,7 @@ pub(crate) fn router(state: AppState) -> Router {
             any(fixtures::http_basic_auth),
         )
         .route("/http/anything", any(fixtures::http_anything_root))
+        .route("/http/anything/", any(fixtures::http_anything_root))
         .route("/http/anything/{*path}", any(fixtures::http_anything_path))
         .route("/http/headers", any(fixtures::http_headers))
         .route("/http/user-agent", any(fixtures::http_user_agent))
@@ -80,7 +82,7 @@ mod tests {
     use biubin_core::{Config, EventStore, Readiness};
     use flate2::read::GzDecoder;
     use serde_json::Value;
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
     use std::io::Read;
     use std::sync::atomic::AtomicU64;
     use std::sync::{Arc, Mutex};
@@ -206,22 +208,38 @@ mod tests {
             assert_eq!(value["body"], body);
         }
 
-        let response = router(test_state())
-            .oneshot(
-                Request::builder()
-                    .method("POST")
-                    .uri("/get")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-        assert_eq!(response.status(), StatusCode::METHOD_NOT_ALLOWED);
-        assert_eq!(response.headers()[header::ALLOW], "GET,HEAD");
+        for (method, path, expected_allow) in [
+            ("POST", "/get", "GET,HEAD"),
+            ("GET", "/post", "POST"),
+            ("GET", "/put", "PUT"),
+            ("GET", "/patch", "PATCH"),
+            ("GET", "/delete", "DELETE"),
+        ] {
+            let response = router(test_state())
+                .oneshot(
+                    Request::builder()
+                        .method(method)
+                        .uri(path)
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(
+                response.status(),
+                StatusCode::METHOD_NOT_ALLOWED,
+                "{method} {path}"
+            );
+            assert_eq!(
+                response.headers()[header::ALLOW],
+                expected_allow,
+                "{method} {path}"
+            );
+        }
     }
 
     #[tokio::test]
-    async fn capabilities_describe_the_request_echo_root_routes() {
+    async fn capabilities_describe_all_request_echo_routes() {
         let response = router(test_state())
             .oneshot(
                 Request::builder()
@@ -234,20 +252,111 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         let bytes = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
         let value: Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(value["schema_version"], 1);
         let endpoints = value["endpoints"].as_array().unwrap();
-        assert!(
-            endpoints
-                .iter()
-                .any(|endpoint| { endpoint["method"] == "*" && endpoint["path"] == "/anything" })
-        );
-        assert!(
-            endpoints
-                .iter()
-                .any(|endpoint| { endpoint["method"] == "*" && endpoint["path"] == "/anything/" })
-        );
-        assert!(endpoints.iter().any(|endpoint| {
-            endpoint["method"] == "*" && endpoint["path"] == "/anything/{*path}"
+        assert!(endpoints.iter().all(|endpoint| {
+            endpoint["methods"].is_array() && endpoint.get("method").is_none()
         }));
+
+        let has_endpoint = |path: &str, expected_methods: &[&str]| {
+            endpoints.iter().any(|endpoint| {
+                if endpoint["path"] != path {
+                    return false;
+                }
+                let methods: HashSet<&str> = endpoint["methods"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .collect();
+                methods == expected_methods.iter().copied().collect()
+            })
+        };
+        for (path, methods) in [
+            ("/get", &["GET", "HEAD"][..]),
+            ("/post", &["POST"][..]),
+            ("/put", &["PUT"][..]),
+            ("/patch", &["PATCH"][..]),
+            ("/delete", &["DELETE"][..]),
+            ("/anything", &["*"][..]),
+            ("/anything/", &["*"][..]),
+            ("/anything/*", &["*"][..]),
+            ("/http/anything", &["*"][..]),
+            ("/http/anything/", &["*"][..]),
+        ] {
+            assert!(
+                has_endpoint(path, methods),
+                "missing {:?} {} endpoint",
+                methods,
+                path
+            );
+        }
+        assert!(endpoints.iter().any(|endpoint| {
+            endpoint["methods"] == serde_json::json!(["*"])
+                && endpoint["path"] == "/http/anything/*"
+                && endpoint["same_contract_as"] == "/anything/*"
+        }));
+        assert!(endpoints.iter().any(|endpoint| {
+            endpoint["methods"] == serde_json::json!(["*"])
+                && endpoint["path"] == "/http/anything"
+                && endpoint["same_contract_as"] == "/anything"
+        }));
+        assert!(endpoints.iter().any(|endpoint| {
+            endpoint["methods"] == serde_json::json!(["*"])
+                && endpoint["path"] == "/http/anything/"
+                && endpoint["same_contract_as"] == "/anything/"
+        }));
+    }
+
+    #[tokio::test]
+    async fn request_echo_namespaces_share_the_same_contract() {
+        for (root_path, stable_path) in [
+            ("/anything", "/http/anything"),
+            ("/anything/", "/http/anything/"),
+            ("/anything/x/y?q=1", "/http/anything/x/y?q=1"),
+        ] {
+            let request = |path: &str| {
+                Request::builder()
+                    .method("POST")
+                    .uri(path)
+                    .header("x-request-id", "shared-request")
+                    .header("authorization", "Bearer secret")
+                    .body(Body::from("shared body"))
+                    .unwrap()
+            };
+
+            let root_response = router(test_state())
+                .oneshot(request(root_path))
+                .await
+                .unwrap();
+            let stable_response = router(test_state())
+                .oneshot(request(stable_path))
+                .await
+                .unwrap();
+            assert_eq!(
+                root_response.status(),
+                stable_response.status(),
+                "{root_path} vs {stable_path}"
+            );
+            assert_eq!(
+                root_response.headers()[header::CONTENT_TYPE],
+                stable_response.headers()[header::CONTENT_TYPE],
+                "{root_path} vs {stable_path}"
+            );
+
+            let root_bytes = to_bytes(root_response.into_body(), 1024 * 1024)
+                .await
+                .unwrap();
+            let stable_bytes = to_bytes(stable_response.into_body(), 1024 * 1024)
+                .await
+                .unwrap();
+            let mut root_value: Value = serde_json::from_slice(&root_bytes).unwrap();
+            let mut stable_value: Value = serde_json::from_slice(&stable_bytes).unwrap();
+            // The echoed absolute URI necessarily differs because the namespaces differ.
+            root_value.as_object_mut().unwrap().remove("uri");
+            stable_value.as_object_mut().unwrap().remove("uri");
+            assert_eq!(root_value, stable_value, "{root_path} vs {stable_path}");
+        }
     }
 
     #[tokio::test]
