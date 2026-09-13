@@ -1,7 +1,7 @@
 use crate::{graphql, state::AppState};
 use axum::Router;
 use axum::middleware as axum_middleware;
-use axum::routing::{any, get};
+use axum::routing::{any, delete, get, patch, post, put};
 
 pub(crate) fn router(state: AppState) -> Router {
     let body_limit = state.config.http_body_limit;
@@ -18,6 +18,16 @@ pub(crate) fn router(state: AppState) -> Router {
             get(graphql::graphql_handler).post(graphql::graphql_handler),
         )
         .route("/graphql/ws", get(graphql::graphql_ws_handler))
+        // Root request-echo aliases. Keep the /http namespace below as the
+        // stable BiuBin-specific fixture API.
+        .route("/get", get(fixtures::http_anything_root))
+        .route("/post", post(fixtures::http_anything_root))
+        .route("/put", put(fixtures::http_anything_root))
+        .route("/patch", patch(fixtures::http_anything_root))
+        .route("/delete", delete(fixtures::http_anything_root))
+        .route("/anything", any(fixtures::http_anything_root))
+        .route("/anything/", any(fixtures::http_anything_root))
+        .route("/anything/{*path}", any(fixtures::http_anything_path))
         .route("/http/status/{code}", any(fixtures::http_status))
         .route("/http/delay/{seconds}", any(fixtures::http_delay))
         .route("/http/redirect/{count}", any(fixtures::http_redirect))
@@ -126,6 +136,118 @@ mod tests {
         assert_eq!(value["path"], "demo");
         assert_eq!(value["body"], "hello");
         assert_eq!(value["headers"]["authorization"][0], "[REDACTED]");
+    }
+
+    #[tokio::test]
+    async fn request_echo_aliases_echo_their_explicit_methods() {
+        for (method, path, body) in [
+            ("GET", "/get", "get body"),
+            ("POST", "/post", "post body"),
+            ("PUT", "/put", "put body"),
+            ("PATCH", "/patch", "patch body"),
+            ("DELETE", "/delete", "delete body"),
+        ] {
+            let response = router(test_state())
+                .oneshot(
+                    Request::builder()
+                        .method(method)
+                        .uri(path)
+                        .body(Body::from(body))
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK, "{method} {path}");
+            let bytes = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
+            let value: Value = serde_json::from_slice(&bytes).unwrap();
+            assert_eq!(value["method"], method);
+            assert_eq!(value["path"], "");
+            assert_eq!(value["body"], body);
+        }
+
+        let response = router(test_state())
+            .oneshot(
+                Request::builder()
+                    .method("HEAD")
+                    .uri("/get")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert!(
+            to_bytes(response.into_body(), 1024 * 1024)
+                .await
+                .unwrap()
+                .is_empty()
+        );
+
+        for (method, path, body, expected_path) in [
+            ("GET", "/anything", "root body", ""),
+            ("DELETE", "/anything/", "slash body", ""),
+            ("PATCH", "/anything/foo/bar", "nested body", "foo/bar"),
+        ] {
+            let response = router(test_state())
+                .oneshot(
+                    Request::builder()
+                        .method(method)
+                        .uri(path)
+                        .body(Body::from(body))
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK, "{method} {path}");
+            let bytes = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
+            let value: Value = serde_json::from_slice(&bytes).unwrap();
+            assert_eq!(value["method"], method);
+            assert_eq!(value["path"], expected_path);
+            assert_eq!(value["body"], body);
+        }
+
+        let response = router(test_state())
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/get")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::METHOD_NOT_ALLOWED);
+        assert_eq!(response.headers()[header::ALLOW], "GET,HEAD");
+    }
+
+    #[tokio::test]
+    async fn capabilities_describe_the_request_echo_root_routes() {
+        let response = router(test_state())
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/capabilities")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let bytes = to_bytes(response.into_body(), 1024 * 1024).await.unwrap();
+        let value: Value = serde_json::from_slice(&bytes).unwrap();
+        let endpoints = value["endpoints"].as_array().unwrap();
+        assert!(
+            endpoints
+                .iter()
+                .any(|endpoint| { endpoint["method"] == "*" && endpoint["path"] == "/anything" })
+        );
+        assert!(
+            endpoints
+                .iter()
+                .any(|endpoint| { endpoint["method"] == "*" && endpoint["path"] == "/anything/" })
+        );
+        assert!(endpoints.iter().any(|endpoint| {
+            endpoint["method"] == "*" && endpoint["path"] == "/anything/{*path}"
+        }));
     }
 
     #[tokio::test]

@@ -1,5 +1,7 @@
 # biubin
 
+[中文](README.zh.md)
+
 `biubin` is a local-first protocol test service. The project is intentionally delivered as one binary; protocol adapters are compiled into the same process.
 
 ## Quick start
@@ -53,6 +55,13 @@ listener; no second runtime service is required.
 Useful endpoints and listeners:
 
 - `GET /api/v1/info` and `GET /api/v1/capabilities` describe the running service.
+- Root request-echo endpoints are available at `GET/HEAD /get`, `POST /post`,
+  `PUT /put`, `PATCH /patch`, `DELETE /delete`, and any method on `/anything`,
+  `/anything/`, or an arbitrary `/anything/...` subpath. These endpoints return
+  BiuBin's request-echo JSON; method-specific endpoints reject other methods
+  with `405`. This root request-echo namespace is reserved for these routes;
+  the original `/http/anything/{*path}` endpoint remains the stable
+  BiuBin-specific API for future fixture expansion.
 - HTTP, WebSocket, SSE and GraphQL HTTP are on `8080`; GraphQL subscriptions use `ws://127.0.0.1:8080/graphql/ws`.
 - gRPC h2c is on `9000`; optional gRPC TLS/mTLS is on `9001`; TCP/UDP echo is on `7000`/`7001`; Thrift binary is on `9090`.
 - Socket fault behavior is deterministic and configuration-driven: `BIUBIN_TCP_DELAY_MS`, `BIUBIN_TCP_CLOSE_AFTER` (0 means keep open), `BIUBIN_TCP_READ_LIMIT`, `BIUBIN_UDP_DELAY_MS`, and `BIUBIN_UDP_DROP_PERCENT` (periodic 100-packet schedule).
@@ -74,7 +83,7 @@ Default listener map:
 | 8883 | MQTT TLS or mTLS |
 | 8083 | MQTT over WebSocket |
 | 9090 | Thrift framed binary |
-| 1886 | internal loopback MQTT TLS backend; never expose or map this port |
+| 1886 | internal loopback-only MQTT TLS backend (not externally reachable); never expose or map this port |
 
 Protocol smoke clients are kept beside the binary. Start `biubin` first, then
 run these in another shell:
