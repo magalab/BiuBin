@@ -424,7 +424,7 @@ const HTTP_ENDPOINTS: &[HttpEndpoint] = &[
         query_parameters: &[
             QueryParameter {
                 name: "url",
-                description: "Relative target URL; absolute HTTP(S) targets require BIUBIN_HTTP_ALLOW_EXTERNAL_REDIRECTS=true",
+                description: "Relative target URL; absolute HTTP(S) targets require BIUBIN_HTTP_ALLOW_EXTERNAL_REDIRECTS=true and an exact BIUBIN_HTTP_EXTERNAL_REDIRECT_HOSTS match",
             },
             QueryParameter {
                 name: "status_code",
