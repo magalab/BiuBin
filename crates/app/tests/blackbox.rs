@@ -1,5 +1,5 @@
-use std::io::{Read, Write};
-use std::net::{SocketAddr, TcpListener, TcpStream, UdpSocket};
+use std::io::{BufRead, BufReader, Read, Write};
+use std::net::{SocketAddr, TcpStream, UdpSocket};
 use std::process::{Child, Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -11,14 +11,6 @@ impl Drop for ChildGuard {
         let _ = self.0.kill();
         let _ = self.0.wait();
     }
-}
-
-fn free_port() -> u16 {
-    TcpListener::bind("127.0.0.1:0")
-        .expect("reserve a test port")
-        .local_addr()
-        .expect("read test port")
-        .port()
 }
 
 fn http_request(address: SocketAddr, path: &str) -> Vec<u8> {
@@ -53,6 +45,35 @@ fn wait_until_ready(address: SocketAddr) {
     panic!("biubin did not become ready at {address}");
 }
 
+fn bound_http_address(child: &mut Child) -> SocketAddr {
+    let stdout = child.stdout.take().expect("capture biubin startup logs");
+    let reader = BufReader::new(stdout);
+    for line in reader.lines() {
+        let line = line.expect("read biubin startup log");
+        let Some(value) = line
+            .split_once("bind_address=")
+            .and_then(|(_, rest)| rest.split_whitespace().next())
+        else {
+            continue;
+        };
+        if let Ok(address) = value.parse() {
+            return address;
+        }
+    }
+    panic!("biubin did not report its bound HTTP address");
+}
+
+#[cfg(unix)]
+fn terminate_gracefully(child: &mut Child) {
+    let status = Command::new("kill")
+        .args(["-TERM", &child.id().to_string()])
+        .status()
+        .expect("send SIGTERM to biubin");
+    assert!(status.success(), "kill command failed: {status}");
+    let status = child.wait().expect("wait for graceful biubin shutdown");
+    assert!(status.success(), "biubin did not exit cleanly: {status}");
+}
+
 fn body(response: &[u8]) -> &[u8] {
     response
         .windows(4)
@@ -63,34 +84,31 @@ fn body(response: &[u8]) -> &[u8] {
 
 #[test]
 fn one_binary_exposes_real_ports_and_socket_protocols() {
-    let http_port = free_port();
     let binary = std::env::var("CARGO_BIN_EXE_biubin").expect("Cargo exposes biubin binary");
     let child = Command::new(binary)
         .env("BIUBIN_BIND_HOST", "127.0.0.1")
         .env("BIUBIN_ADVERTISE_HOST", "127.0.0.1")
-        .env("BIUBIN_HTTP_PORT", http_port.to_string())
+        .env("BIUBIN_HTTP_PORT", "0")
         .env("BIUBIN_GRPC_H2C_PORT", "0")
         .env("BIUBIN_TCP_PORT", "0")
         .env("BIUBIN_UDP_PORT", "0")
         .env("BIUBIN_THRIFT_PORT", "0")
         .env("BIUBIN_MQTT_ENABLED", "false")
-        .env("RUST_LOG", "error")
-        .stdout(Stdio::null())
+        .env("RUST_LOG", "info")
+        .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .spawn()
         .expect("start biubin binary");
-    let _child = ChildGuard(child);
-    let http_address = SocketAddr::from(([127, 0, 0, 1], http_port));
+    let mut child = ChildGuard(child);
+    let http_address = bound_http_address(&mut child.0);
+    assert_ne!(http_address.port(), 0);
     wait_until_ready(http_address);
 
     let info_response = http_request(http_address, "/api/v1/info");
     assert!(info_response.starts_with(b"HTTP/1.1 200 "));
     let info: serde_json::Value = serde_json::from_slice(body(&info_response)).unwrap();
     assert_eq!(info["name"], "biubin");
-    assert_eq!(
-        info["bound_addresses"]["http"],
-        format!("127.0.0.1:{http_port}")
-    );
+    assert_eq!(info["bound_addresses"]["http"], http_address.to_string());
     let tcp_address: SocketAddr = info["bound_addresses"]["tcp"]
         .as_str()
         .expect("TCP bound address")
@@ -147,4 +165,7 @@ fn one_binary_exposes_real_ports_and_socket_protocols() {
     let mut packet = [0_u8; 64];
     let (length, _) = udp.recv_from(&mut packet).expect("read UDP packet");
     assert_eq!(&packet[..length], b"udp smoke");
+
+    #[cfg(unix)]
+    terminate_gracefully(&mut child.0);
 }

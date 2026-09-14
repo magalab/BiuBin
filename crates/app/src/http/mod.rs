@@ -954,11 +954,35 @@ mod tests {
             )
             .await
             .unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+        Arc::make_mut(&mut state.config)
+            .http_external_redirect_hosts
+            .push("example.com".to_owned());
+        let response = router(state.clone())
+            .oneshot(
+                Request::builder()
+                    .uri("/redirect-to?url=https%3A%2F%2Fexample.com%2Ftarget")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
         assert_eq!(response.status(), StatusCode::FOUND);
         assert_eq!(
             response.headers()[header::LOCATION],
             "https://example.com/target"
         );
+        let response = router(state.clone())
+            .oneshot(
+                Request::builder()
+                    .uri("/redirect-to?url=https%3A%2F%2Fevil.example.com%2Ftarget")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
         for url in [
             "http%3A%2F%2F127.0.0.1%2Fadmin",
             "http%3A%2F%2F%5B%3A%3A1%5D%2Fadmin",

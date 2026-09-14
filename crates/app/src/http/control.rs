@@ -100,6 +100,8 @@ pub(crate) async fn info_api(State(state): State<AppState>, headers: HeaderMap) 
             "mqtt_tls_mode": state.config.mqtt_tls_mode,
             "graphql_introspection_enabled": state.config.graphql_introspection_enabled,
             "http_allow_external_redirects": state.config.http_allow_external_redirects,
+            "http_external_redirect_host_allowlist":
+                state.config.http_external_redirect_hosts.len(),
             "mqtt_topic_acl": false,
             "mqtt_session_persistence": "process",
             "mqtt_graceful_drain": false,

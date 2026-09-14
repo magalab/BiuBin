@@ -71,7 +71,8 @@ TCP/UDP echo、GraphQL、Thrift，以及一个可选的内置 MQTT Broker。MQTT
   `/drip`、`/unstable` 和 `/bearer`。
 - `/redirect-to` 默认只允许相对 URL。设置
   `BIUBIN_HTTP_ALLOW_EXTERNAL_REDIRECTS=true` 后才允许绝对 URL；绝对 URL
-  仅支持 HTTP(S)，长度不超过 2048 字节，且会拒绝本地字面量地址。
+  仅支持 HTTP(S)，长度不超过 2048 字节，且会拒绝本地字面量地址；hostname
+  还必须精确列在 `BIUBIN_HTTP_EXTERNAL_REDIRECT_HOSTS` 中。
 - 媒体 fixture 位于 `/image`、`/image/png`、`/image/jpeg`、
   `/image/svg`、`/image/webp`、`/video`、`/video/mp4` 和
   `/video/webm`。媒体 fixture、`/bytes/{n}` 和 `/range/{n}` 支持
@@ -135,6 +136,11 @@ cargo run -p biubin --example mqtt_smoke -- 127.0.0.1 1884 biubin biubin-dev tcp
 cargo run -p biubin --example mqtt_v5_smoke -- 127.0.0.1 1885 biubin biubin-dev
 ```
 
+CI 还会使用 `grpcurl`、`mosquitto_pub/sub` 和 Apache Thrift 生成的 Node.js
+客户端执行跨语言兼容性检查。这些仅是测试依赖，不会进入运行时镜像；本地
+安装对应工具及 Thrift compiler 后，可运行
+`BIUBIN_EXTERNAL_SMOKE=1 bash scripts/blackbox.sh` 执行同一组检查。
+
 GraphQL HTTP 示例：
 
 ```sh
@@ -177,10 +183,28 @@ WebSocket `Origin`，也不信任 `X-Forwarded-For`；部署在代理后面时�
 bash scripts/blackbox.sh
 ```
 
+Docker 交付 smoke 会构建镜像、启动唯一的 Compose 服务，并检查健康状态、
+静态资源、媒体 Range、gRPC TLS 和 MQTT listener：
+
+```sh
+bash scripts/compose-smoke.sh
+```
+
+真实浏览器 smoke 需要先生成 `web/dist` 并安装 Playwright 浏览器：
+
+```sh
+cd web
+npm ci
+npm run build
+npx playwright install chromium
+npm run test:e2e
+```
+
 ## CI 和发布
 
-GitHub Actions 会在 push 和 pull request 时运行前端、Rust 以及 black-box 检查。
-推送到 `main` 或推送版本 tag 时，还会将多架构镜像发布到
+GitHub Actions 会在 push 和 pull request 时运行前端、路由契约、Rust、
+Docker Compose、真实浏览器、black-box 以及外部协议兼容性检查。推送到
+`main` 或推送版本 tag 时，还会将多架构镜像发布到
 `ghcr.io/magalab/biubin`。
 
 推送类似 `v0.1.0` 的版本 tag 会创建 GitHub release，其中包含 Linux `amd64`

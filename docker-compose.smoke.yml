@@ -1,0 +1,11 @@
+services:
+  biubin:
+    environment:
+      BIUBIN_GRPC_TLS_ENABLED: "true"
+      BIUBIN_GRPC_TLS_MODE: tls
+      BIUBIN_TLS_CERT_PATH: /certs/server.pem
+      BIUBIN_TLS_KEY_PATH: /certs/server-key.pem
+      BIUBIN_MQTT_ENABLED: "true"
+      BIUBIN_MQTT_TLS_ENABLED: "false"
+    volumes:
+      - ./certs/dev:/certs:ro

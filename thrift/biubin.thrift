@@ -1,4 +1,5 @@
 namespace rs biubin
+namespace js biubin
 
 enum ErrorKind {
   INVALID = 1,

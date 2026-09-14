@@ -56,6 +56,7 @@ pub struct Config {
     pub tls_key_path: String,
     pub tls_client_ca_path: String,
     pub http_allow_external_redirects: bool,
+    pub http_external_redirect_hosts: Vec<String>,
     pub http_body_limit: usize,
     pub max_bytes_response: usize,
     pub event_capacity: usize,
@@ -85,6 +86,7 @@ impl Default for Config {
             tls_key_path: "certs/dev/server-key.pem".to_owned(),
             tls_client_ca_path: "certs/dev/ca.pem".to_owned(),
             http_allow_external_redirects: false,
+            http_external_redirect_hosts: Vec::new(),
             http_body_limit: 2 * 1024 * 1024,
             max_bytes_response: 10 * 1024 * 1024,
             event_capacity: 200,
@@ -123,6 +125,10 @@ impl Config {
             "BIUBIN_HTTP_ALLOW_EXTERNAL_REDIRECTS",
             config.http_allow_external_redirects,
         )?;
+        config.http_external_redirect_hosts = parse_csv_env(
+            "BIUBIN_HTTP_EXTERNAL_REDIRECT_HOSTS",
+            config.http_external_redirect_hosts,
+        );
         config.ports.http = parse_env("BIUBIN_HTTP_PORT", config.ports.http)?;
         config.ports.grpc_h2c = parse_env("BIUBIN_GRPC_H2C_PORT", config.ports.grpc_h2c)?;
         config.ports.grpc_tls = parse_env("BIUBIN_GRPC_TLS_PORT", config.ports.grpc_tls)?;
@@ -177,6 +183,14 @@ impl Config {
         if self.udp_drop_percent > 100 {
             return Err("udp_drop_percent must be between 0 and 100".to_owned());
         }
+        if self.http_external_redirect_hosts.iter().any(|host| {
+            host.is_empty() || host.len() > 253 || host.chars().any(char::is_whitespace)
+        }) {
+            return Err(
+                "http_external_redirect_hosts must contain non-empty hostnames no longer than 253 bytes"
+                    .to_owned(),
+            );
+        }
         Ok(())
     }
 }
@@ -197,6 +211,19 @@ fn parse_bool_env(name: &str, default: bool) -> Result<bool, String> {
         },
         Err(_) => Ok(default),
     }
+}
+
+fn parse_csv_env(name: &str, default: Vec<String>) -> Vec<String> {
+    env::var(name)
+        .map(|value| {
+            value
+                .split(',')
+                .map(str::trim)
+                .filter(|host| !host.is_empty())
+                .map(str::to_ascii_lowercase)
+                .collect()
+        })
+        .unwrap_or(default)
 }
 
 fn parse_env<T>(name: &str, default: T) -> Result<T, String>

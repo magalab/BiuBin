@@ -80,8 +80,9 @@ Useful endpoints and listeners:
   `/drip`, `/unstable`, and `/bearer`.
 - `/redirect-to` accepts relative targets by default. Absolute targets are
   disabled unless `BIUBIN_HTTP_ALLOW_EXTERNAL_REDIRECTS=true`; enabled
-  absolute targets are limited to HTTP(S), 2048 bytes, and non-local literal
-  addresses.
+  absolute targets are limited to HTTP(S), 2048 bytes, non-local literal
+  addresses, and exact hostnames listed in
+  `BIUBIN_HTTP_EXTERNAL_REDIRECT_HOSTS`.
 - Media fixtures are available at `/image`, `/image/png`,
   `/image/jpeg`, `/image/svg`, `/image/webp`, `/video`,
   `/video/mp4`, and `/video/webm`. Media fixtures, `/bytes/{n}`, and
@@ -129,6 +130,12 @@ cargo run -p biubin --example mqtt_smoke -- 127.0.0.1 1884 biubin biubin-dev tcp
 cargo run -p biubin --example mqtt_v5_smoke -- 127.0.0.1 1885 biubin biubin-dev
 ```
 
+CI also runs compatibility checks with `grpcurl`, `mosquitto_pub/sub`, and an
+Apache Thrift-generated Node.js client. These are test-only dependencies and
+are not included in the runtime image; run the same checks locally with
+`BIUBIN_EXTERNAL_SMOKE=1 bash scripts/blackbox.sh` after installing those
+clients and the Thrift compiler.
+
 GraphQL HTTP example:
 
 ```sh
@@ -172,11 +179,30 @@ The local no-public-network black-box check is:
 bash scripts/blackbox.sh
 ```
 
+The Docker delivery smoke builds the image, starts the single Compose service,
+and checks health, static assets, media ranges, gRPC TLS, and MQTT listeners:
+
+```sh
+bash scripts/compose-smoke.sh
+```
+
+The real-browser smoke requires a built `web/dist` and Playwright browsers:
+
+```sh
+cd web
+npm ci
+npm run build
+npx playwright install chromium
+npm run test:e2e
+```
+
 ## CI and releases
 
-GitHub Actions runs the frontend, Rust, and black-box checks for pushes and
+GitHub Actions runs the frontend, route-contract, Rust, Docker Compose, real
+browser, black-box, and external protocol-compatibility checks for pushes and
 pull requests. A push to `main` or a version tag also builds and publishes a
-multi-architecture image to `ghcr.io/magalab/biubin`.
+multi-architecture image to
+`ghcr.io/magalab/biubin`.
 
 Pushing a version tag such as `v0.1.0` creates a GitHub release containing
 Linux `amd64` and `arm64` binary archives with SHA-256 checksums.

@@ -2,6 +2,8 @@
 /tmp/
 /web/node_modules/
 /web/dist/
+/web/test-results/
+/web/playwright-report/
 /.env
 *.log
 .DS_Store

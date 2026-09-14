@@ -324,14 +324,21 @@ pub(crate) async fn http_redirect_to(
             );
         }
     };
-    if let Some(error) = validate_redirect_target(&url, state.config.http_allow_external_redirects)
-    {
+    if let Some(error) = validate_redirect_target(
+        &url,
+        state.config.http_allow_external_redirects,
+        &state.config.http_external_redirect_hosts,
+    ) {
         return json_response(StatusCode::BAD_REQUEST, request_id, json!({"error": error}));
     }
     redirect_response(status, request_id, &url)
 }
 
-fn validate_redirect_target(url: &str, allow_external: bool) -> Option<&'static str> {
+fn validate_redirect_target(
+    url: &str,
+    allow_external: bool,
+    allowed_hosts: &[String],
+) -> Option<&'static str> {
     if url.len() > MAX_REDIRECT_URL_LEN {
         return Some("redirect URL is too long");
     }
@@ -351,13 +358,16 @@ fn validate_redirect_target(url: &str, allow_external: bool) -> Option<&'static 
         };
         if host.eq_ignore_ascii_case("localhost")
             || host.to_ascii_lowercase().ends_with(".localhost")
-            || host
-                .trim_start_matches('[')
-                .trim_end_matches(']')
-                .parse::<IpAddr>()
-                .is_ok_and(is_restricted_ip)
+            || host.parse::<IpAddr>().is_ok_and(is_restricted_ip)
         {
             return Some("redirect URL points to a local address");
+        }
+        if host.parse::<IpAddr>().is_err()
+            && !allowed_hosts
+                .iter()
+                .any(|allowed| allowed.eq_ignore_ascii_case(host))
+        {
+            return Some("redirect URL host is not allowlisted");
         }
         return None;
     }

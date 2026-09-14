@@ -21,6 +21,8 @@ tls_smoke_mqtt_port="${BIUBIN_BLACKBOX_TLS_SMOKE_MQTT_PORT:-51897}"
 tmp_dir="$(mktemp -d)"
 pid=""
 tls_pid=""
+external_mqtt_pid=""
+require_external_smoke="${BIUBIN_EXTERNAL_SMOKE:-0}"
 
 cleanup() {
     if [[ -n "$tls_pid" ]] && kill -0 "$tls_pid" 2>/dev/null; then
@@ -30,6 +32,10 @@ cleanup() {
     if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
         kill "$pid" 2>/dev/null || true
         wait "$pid" 2>/dev/null || true
+    fi
+    if [[ -n "$external_mqtt_pid" ]] && kill -0 "$external_mqtt_pid" 2>/dev/null; then
+        kill "$external_mqtt_pid" 2>/dev/null || true
+        wait "$external_mqtt_pid" 2>/dev/null || true
     fi
     rm -rf "$tmp_dir"
 }
@@ -237,6 +243,40 @@ grep -q '"code":"UNAUTHENTICATED"' <<<"$graphql_auth_error"
 
 if command -v grpcurl >/dev/null 2>&1; then
     grpcurl -plaintext "127.0.0.1:$grpc_port" list | grep -q 'biubin.v1.Biubin'
+elif [[ "$require_external_smoke" == 1 ]]; then
+    echo "BIUBIN_EXTERNAL_SMOKE=1 requires grpcurl" >&2
+    exit 1
+fi
+
+if [[ "$require_external_smoke" == 1 ]]; then
+    for command in mosquitto_pub mosquitto_sub thrift node; do
+        if ! command -v "$command" >/dev/null 2>&1; then
+            echo "BIUBIN_EXTERNAL_SMOKE=1 requires $command" >&2
+            exit 1
+        fi
+    done
+
+    mqtt_external_topic="biubin/external/smoke"
+    mqtt_external_output="$tmp_dir/mosquitto-sub"
+    mosquitto_sub \
+        -h 127.0.0.1 \
+        -p "$mqtt_port" \
+        -t "$mqtt_external_topic" \
+        -C 1 \
+        -W 10 \
+        >"$mqtt_external_output" 2>"$tmp_dir/mosquitto-sub.log" &
+    external_mqtt_pid=$!
+    sleep 0.5
+    mosquitto_pub \
+        -h 127.0.0.1 \
+        -p "$mqtt_port" \
+        -t "$mqtt_external_topic" \
+        -m "hello from mosquitto"
+    wait "$external_mqtt_pid"
+    external_mqtt_pid=""
+    grep -Fxq "hello from mosquitto" "$mqtt_external_output"
+
+    bash "$repo_dir/scripts/thrift-cross-language-smoke.sh" "127.0.0.1:$thrift_port"
 fi
 
 cargo +1.97.0 run --quiet -p biubin --example grpc_smoke -- 127.0.0.1 "$grpc_port" h2c
