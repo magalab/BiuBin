@@ -58,6 +58,10 @@ TCP/UDP echo、GraphQL、Thrift，以及一个可选的内置 MQTT Broker。MQTT
   `PATCH /patch`、`DELETE /delete`，以及支持任意方法的 `/anything`、
   `/anything/` 和任意 `/anything/...` 子路径。这些端点返回 BiuBin 自有的
   请求回显 JSON；方法专用端点使用其他方法时返回 `405`。
+- 除了为测试状态映射而故意支持任意方法的 `/status/{code}` 外，其他附加的
+  读取型 fixture 均只注册 `GET/HEAD`，使用其他方法时返回 `405`。包括
+  `/headers`、`/ip`、`/user-agent`、延迟、重定向、压缩、认证、媒体、缓存、
+  内容表示、流式和失败模拟 fixture。
 - HTTP fixture 统一使用根路径，包括 `/status/{code}`、`/headers`、
   `/ip`、`/user-agent`、`/delay/{seconds}`、`/redirect/{count}`、
   `/redirect-to`、`/bytes/{n}`、`/stream-bytes/{n}`、`/range/{n}`、

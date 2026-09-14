@@ -16,19 +16,38 @@ const PUT: &[&str] = &["PUT"];
 const PATCH: &[&str] = &["PATCH"];
 const DELETE: &[&str] = &["DELETE"];
 
-const TAG_REQUEST_FIXTURES: &str = "Request fixtures";
+const TAG_REQUEST_ECHO: &str = "Request echo";
+const TAG_REQUEST_METADATA: &str = "Request metadata";
+const TAG_STATUS_REDIRECTS: &str = "Status and redirects";
+const TAG_CONTENT_ENCODING: &str = "Content encoding";
+const TAG_RESPONSE_HEADERS: &str = "Response headers";
 const TAG_MEDIA: &str = "Media";
 const TAG_STATE_CACHING: &str = "State and caching";
 const TAG_AUTHENTICATION: &str = "Authentication";
-const TAG_HTTP_BEHAVIOR: &str = "HTTP behavior";
 const TAG_REPRESENTATIONS: &str = "Representations";
 const TAG_STREAMING_BYTES: &str = "Streaming and bytes";
 const TAG_FAILURE_SIMULATION: &str = "Failure simulation";
 
 const HTTP_TAGS: &[(&str, &str)] = &[
     (
-        TAG_REQUEST_FIXTURES,
-        "Request echo and basic HTTP request fixtures.",
+        TAG_REQUEST_ECHO,
+        "Echo request methods, URLs, headers, bodies, and query data.",
+    ),
+    (
+        TAG_REQUEST_METADATA,
+        "Inspect request headers, User-Agent, and client address.",
+    ),
+    (
+        TAG_STATUS_REDIRECTS,
+        "Control status codes, delays, and redirect chains or targets.",
+    ),
+    (
+        TAG_CONTENT_ENCODING,
+        "Compressed response fixtures using gzip or deflate.",
+    ),
+    (
+        TAG_RESPONSE_HEADERS,
+        "Set safe response headers from query parameters.",
     ),
     (TAG_MEDIA, "Image, video, and audio response fixtures."),
     (
@@ -38,10 +57,6 @@ const HTTP_TAGS: &[(&str, &str)] = &[
     (
         TAG_AUTHENTICATION,
         "Basic and bearer authentication fixtures.",
-    ),
-    (
-        TAG_HTTP_BEHAVIOR,
-        "Redirects and response header manipulation.",
     ),
     (
         TAG_REPRESENTATIONS,
@@ -54,6 +69,31 @@ const HTTP_TAGS: &[(&str, &str)] = &[
     (
         TAG_FAILURE_SIMULATION,
         "Deterministic failure and instability simulation.",
+    ),
+];
+
+const HTTP_TAG_GROUPS: &[(&str, &[&str])] = &[
+    (
+        "Request and response basics",
+        &[
+            TAG_REQUEST_ECHO,
+            TAG_REQUEST_METADATA,
+            TAG_STATUS_REDIRECTS,
+            TAG_CONTENT_ENCODING,
+            TAG_RESPONSE_HEADERS,
+        ],
+    ),
+    (
+        "Data and media",
+        &[TAG_REPRESENTATIONS, TAG_MEDIA, TAG_STREAMING_BYTES],
+    ),
+    (
+        "State and security",
+        &[
+            TAG_STATE_CACHING,
+            TAG_AUTHENTICATION,
+            TAG_FAILURE_SIMULATION,
+        ],
     ),
 ];
 
@@ -151,7 +191,7 @@ const HTTP_ENDPOINTS: &[HttpEndpoint] = &[
     HttpEndpoint {
         capability_path: "/delay/{seconds}",
         openapi_path: "/delay/{seconds}",
-        methods: ANY,
+        methods: GET,
         summary: "Delay the response",
         response_content_type: "application/json",
         query_parameters: NO_QUERY,
@@ -159,7 +199,7 @@ const HTTP_ENDPOINTS: &[HttpEndpoint] = &[
     HttpEndpoint {
         capability_path: "/redirect/{count}",
         openapi_path: "/redirect/{count}",
-        methods: ANY,
+        methods: GET,
         summary: "Return a fixed number of relative redirects",
         response_content_type: "application/json",
         query_parameters: NO_QUERY,
@@ -183,7 +223,7 @@ const HTTP_ENDPOINTS: &[HttpEndpoint] = &[
     HttpEndpoint {
         capability_path: "/gzip",
         openapi_path: "/gzip",
-        methods: ANY,
+        methods: GET,
         summary: "Return a gzip-encoded response",
         response_content_type: "application/json",
         query_parameters: NO_QUERY,
@@ -191,7 +231,7 @@ const HTTP_ENDPOINTS: &[HttpEndpoint] = &[
     HttpEndpoint {
         capability_path: "/deflate",
         openapi_path: "/deflate",
-        methods: ANY,
+        methods: GET,
         summary: "Return a deflate-encoded response",
         response_content_type: "application/json",
         query_parameters: NO_QUERY,
@@ -199,7 +239,7 @@ const HTTP_ENDPOINTS: &[HttpEndpoint] = &[
     HttpEndpoint {
         capability_path: "/basic-auth/{user}/{password}",
         openapi_path: "/basic-auth/{user}/{password}",
-        methods: ANY,
+        methods: GET,
         summary: "Challenge and validate HTTP Basic Auth",
         response_content_type: "application/json",
         query_parameters: NO_QUERY,
@@ -207,7 +247,7 @@ const HTTP_ENDPOINTS: &[HttpEndpoint] = &[
     HttpEndpoint {
         capability_path: "/headers",
         openapi_path: "/headers",
-        methods: ANY,
+        methods: GET,
         summary: "Return request headers",
         response_content_type: "application/json",
         query_parameters: NO_QUERY,
@@ -215,7 +255,7 @@ const HTTP_ENDPOINTS: &[HttpEndpoint] = &[
     HttpEndpoint {
         capability_path: "/ip",
         openapi_path: "/ip",
-        methods: ANY,
+        methods: GET,
         summary: "Return the connected client IP",
         response_content_type: "application/json",
         query_parameters: NO_QUERY,
@@ -223,7 +263,7 @@ const HTTP_ENDPOINTS: &[HttpEndpoint] = &[
     HttpEndpoint {
         capability_path: "/user-agent",
         openapi_path: "/user-agent",
-        methods: ANY,
+        methods: GET,
         summary: "Return the User-Agent header",
         response_content_type: "application/json",
         query_parameters: NO_QUERY,
@@ -526,6 +566,10 @@ pub(crate) fn openapi_document() -> Value {
         .iter()
         .map(|(name, description)| json!({"name": name, "description": description}))
         .collect::<Vec<_>>();
+    let tag_groups = HTTP_TAG_GROUPS
+        .iter()
+        .map(|(name, tags)| json!({"name": name, "tags": tags}))
+        .collect::<Vec<_>>();
     json!({
         "openapi": "3.0.3",
         "info": {
@@ -535,6 +579,7 @@ pub(crate) fn openapi_document() -> Value {
         },
         "servers": [{"url": "/"}],
         "tags": tags,
+        "x-tagGroups": tag_groups,
         "components": {
             "securitySchemes": {
                 "basicAuth": {"type": "http", "scheme": "basic"},
@@ -901,16 +946,29 @@ fn tag_for_path(path: &str) -> &'static str {
         TAG_STATE_CACHING
     } else if path.starts_with("/basic-auth") || path == "/bearer" {
         TAG_AUTHENTICATION
-    } else if path == "/response-headers" || path == "/redirect-to" {
-        TAG_HTTP_BEHAVIOR
+    } else if path == "/response-headers" {
+        TAG_RESPONSE_HEADERS
     } else if path == "/json" || path == "/html" || path == "/xml" || path == "/encoding/utf8" {
         TAG_REPRESENTATIONS
     } else if path == "/drip" || path == "/range/{count}" || path == "/stream-bytes/{count}" {
         TAG_STREAMING_BYTES
     } else if path == "/unstable" {
         TAG_FAILURE_SIMULATION
+    } else if matches!(path, "/get" | "/post" | "/put" | "/patch" | "/delete")
+        || path.starts_with("/anything")
+    {
+        TAG_REQUEST_ECHO
+    } else if matches!(path, "/headers" | "/ip" | "/user-agent") {
+        TAG_REQUEST_METADATA
+    } else if matches!(
+        path,
+        "/status/{code}" | "/delay/{seconds}" | "/redirect/{count}" | "/redirect-to"
+    ) {
+        TAG_STATUS_REDIRECTS
+    } else if matches!(path, "/gzip" | "/deflate") {
+        TAG_CONTENT_ENCODING
     } else {
-        TAG_REQUEST_FIXTURES
+        TAG_REQUEST_ECHO
     }
 }
 

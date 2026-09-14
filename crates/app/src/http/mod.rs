@@ -31,19 +31,19 @@ pub(crate) fn router(state: AppState) -> Router {
         .route("/anything/", any(fixtures::http_anything_root))
         .route("/anything/{*path}", any(fixtures::http_anything_path))
         .route("/status/{code}", any(fixtures::http_status))
-        .route("/delay/{seconds}", any(fixtures::http_delay))
-        .route("/redirect/{count}", any(fixtures::http_redirect))
+        .route("/delay/{seconds}", get(fixtures::http_delay))
+        .route("/redirect/{count}", get(fixtures::http_redirect))
         .route("/bytes/{count}", get(fixtures::http_bytes))
         .route("/stream-bytes/{count}", get(fixtures::http_stream_bytes))
-        .route("/gzip", any(fixtures::http_gzip))
-        .route("/deflate", any(fixtures::http_deflate))
+        .route("/gzip", get(fixtures::http_gzip))
+        .route("/deflate", get(fixtures::http_deflate))
         .route(
             "/basic-auth/{user}/{password}",
-            any(fixtures::http_basic_auth),
+            get(fixtures::http_basic_auth),
         )
-        .route("/headers", any(fixtures::http_headers))
-        .route("/user-agent", any(fixtures::http_user_agent))
-        .route("/ip", any(fixtures::http_ip))
+        .route("/headers", get(fixtures::http_headers))
+        .route("/user-agent", get(fixtures::http_user_agent))
+        .route("/ip", get(fixtures::http_ip))
         .route("/image", get(fixtures::http_image_default))
         .route("/image/{format}", get(fixtures::http_image_format))
         .route("/video", get(fixtures::http_video_default))
@@ -332,16 +332,16 @@ mod tests {
             ("/anything/", &["*"][..]),
             ("/anything/*", &["*"][..]),
             ("/status/{code}", &["*"][..]),
-            ("/delay/{seconds}", &["*"][..]),
-            ("/redirect/{count}", &["*"][..]),
+            ("/delay/{seconds}", &["GET", "HEAD"][..]),
+            ("/redirect/{count}", &["GET", "HEAD"][..]),
             ("/bytes/{count}", &["GET", "HEAD"][..]),
             ("/stream-bytes/{count}", &["GET", "HEAD"][..]),
-            ("/gzip", &["*"][..]),
-            ("/deflate", &["*"][..]),
-            ("/basic-auth/{user}/{password}", &["*"][..]),
-            ("/headers", &["*"][..]),
-            ("/ip", &["*"][..]),
-            ("/user-agent", &["*"][..]),
+            ("/gzip", &["GET", "HEAD"][..]),
+            ("/deflate", &["GET", "HEAD"][..]),
+            ("/basic-auth/{user}/{password}", &["GET", "HEAD"][..]),
+            ("/headers", &["GET", "HEAD"][..]),
+            ("/ip", &["GET", "HEAD"][..]),
+            ("/user-agent", &["GET", "HEAD"][..]),
             ("/image", &["GET", "HEAD"][..]),
             ("/image/png", &["GET", "HEAD"][..]),
             ("/image/jpeg", &["GET", "HEAD"][..]),
@@ -421,6 +421,46 @@ mod tests {
         let mut decoded = String::new();
         decoder.read_to_string(&mut decoded).unwrap();
         assert_eq!(decoded, r#"{"message":"biubin compressed response"}"#);
+    }
+
+    #[tokio::test]
+    async fn read_only_http_fixtures_reject_non_get_methods() {
+        for path in [
+            "/delay/0",
+            "/redirect/1",
+            "/gzip",
+            "/deflate",
+            "/basic-auth/user/password",
+            "/headers",
+            "/ip",
+            "/user-agent",
+        ] {
+            let response = router(test_state())
+                .oneshot(
+                    Request::builder()
+                        .method("POST")
+                        .uri(path)
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(
+                response.status(),
+                StatusCode::METHOD_NOT_ALLOWED,
+                "POST {path}"
+            );
+
+            let response = router(test_state())
+                .oneshot(Request::builder().uri(path).body(Body::empty()).unwrap())
+                .await
+                .unwrap();
+            assert_ne!(
+                response.status(),
+                StatusCode::METHOD_NOT_ALLOWED,
+                "GET {path}"
+            );
+        }
     }
 
     #[tokio::test]
@@ -534,9 +574,48 @@ mod tests {
         let document: Value = serde_json::from_slice(&bytes).unwrap();
         assert_eq!(document["openapi"], "3.0.3");
         let tags = document["tags"].as_array().unwrap();
-        assert_eq!(tags.len(), 8);
-        assert_eq!(tags[0]["name"], "Request fixtures");
+        assert_eq!(tags.len(), 11);
+        let tag_names: Vec<&str> = tags.iter().filter_map(|tag| tag["name"].as_str()).collect();
+        assert_eq!(
+            tag_names,
+            vec![
+                "Request echo",
+                "Request metadata",
+                "Status and redirects",
+                "Content encoding",
+                "Response headers",
+                "Media",
+                "State and caching",
+                "Authentication",
+                "Representations",
+                "Streaming and bytes",
+                "Failure simulation",
+            ]
+        );
         assert!(tags.iter().all(|tag| tag["description"].is_string()));
+        let tag_groups = document["x-tagGroups"].as_array().unwrap();
+        assert_eq!(tag_groups.len(), 3);
+        assert_eq!(tag_groups[0]["name"], "Request and response basics");
+        assert_eq!(tag_groups[0]["tags"].as_array().unwrap().len(), 5,);
+        assert_eq!(tag_groups[1]["name"], "Data and media");
+        assert_eq!(tag_groups[1]["tags"].as_array().unwrap().len(), 3);
+        assert_eq!(tag_groups[2]["name"], "State and security");
+        assert_eq!(tag_groups[2]["tags"].as_array().unwrap().len(), 3);
+        let grouped_tag_names: HashSet<&str> = tag_groups
+            .iter()
+            .flat_map(|group| group["tags"].as_array().into_iter().flatten())
+            .filter_map(Value::as_str)
+            .collect();
+        assert_eq!(grouped_tag_names.len(), tag_names.len());
+        assert_eq!(document["paths"]["/get"]["get"]["tags"][0], "Request echo");
+        assert_eq!(
+            document["paths"]["/headers"]["get"]["tags"][0],
+            "Request metadata"
+        );
+        assert_eq!(
+            document["paths"]["/redirect-to"]["get"]["tags"][0],
+            "Status and redirects"
+        );
         let operation_ids: Vec<&str> = document["paths"]
             .as_object()
             .unwrap()

@@ -66,6 +66,11 @@ Useful endpoints and listeners:
   `/anything/`, or an arbitrary `/anything/...` subpath. These endpoints return
   BiuBin's request-echo JSON; method-specific endpoints reject other methods
   with `405`.
+- Except for `/status/{code}`, which intentionally accepts any method for status
+  testing, the additional read-oriented fixtures use `GET/HEAD`; other methods
+  receive `405`. This includes `/headers`, `/ip`, `/user-agent`, delays,
+  redirects, compression, authentication, media, caching, representations,
+  streaming, and failure fixtures.
 - Additional HTTP fixtures include `/status/{code}`, `/headers`, `/ip`,
   `/user-agent`, `/delay/{seconds}`, `/redirect/{count}`,
   `/redirect-to`, `/bytes/{n}`, `/stream-bytes/{n}`, `/range/{n}`,
