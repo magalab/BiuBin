@@ -488,7 +488,7 @@ dependencies = [
 
 [[package]]
 name = "biubin"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-graphql",
  "async-graphql-axum",
@@ -523,7 +523,7 @@ dependencies = [
 
 [[package]]
 name = "biubin-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde",
  "serde_json",

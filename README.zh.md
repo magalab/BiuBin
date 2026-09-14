@@ -210,7 +210,7 @@ Docker Compose、真实浏览器、black-box 以及外部协议兼容性检查�
 `main` 或推送版本 tag 时，还会将多架构镜像发布到
 `ghcr.io/magalab/biubin`。
 
-推送类似 `v0.1.0` 的版本 tag 会创建 GitHub release，其中包含 Linux `amd64`
+推送类似 `v0.2.0` 的版本 tag 会创建 GitHub release，其中包含 Linux `amd64`
 和 `arm64` 二进制归档及 SHA-256 校验和。
 
 ## 源码结构

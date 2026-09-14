@@ -207,7 +207,7 @@ pull requests. A push to `main` or a version tag also builds and publishes a
 multi-architecture image to
 `ghcr.io/magalab/biubin`.
 
-Pushing a version tag such as `v0.1.0` creates a GitHub release containing
+Pushing a version tag such as `v0.2.0` creates a GitHub release containing
 Linux `amd64` and `arm64` binary archives with SHA-256 checksums.
 
 ## Source layout
