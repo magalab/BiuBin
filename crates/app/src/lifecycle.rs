@@ -10,6 +10,11 @@ use tokio::sync::{Semaphore, broadcast};
 use tokio::task::JoinSet;
 use tracing::info;
 
+type ListenerTaskResult = (
+    &'static str,
+    Result<(), Box<dyn std::error::Error + Send + Sync>>,
+);
+
 pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     tracing_subscriber::fmt().with_env_filter("info").init();
 
@@ -242,28 +247,36 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>
         thrift_stop.store(true, Ordering::Release);
     });
 
+    supervise_listeners(tasks, shutdown_requested, state.readiness.clone()).await;
+    let _ = thrift_signal.await;
+    thrift_handle.join();
+    Ok(())
+}
+
+async fn supervise_listeners(
+    mut tasks: JoinSet<ListenerTaskResult>,
+    shutdown_requested: Arc<std::sync::atomic::AtomicBool>,
+    readiness: Readiness,
+) {
     while let Some(result) = tasks.join_next().await {
         match result {
             Ok((name, Ok(()))) => {
                 if shutdown_requested.load(Ordering::Acquire) {
                     tracing::debug!(listener = name, "listener stopped during shutdown");
                 } else {
-                    state.readiness.mark(name, false);
+                    readiness.mark(name, false);
                     tracing::error!(listener = name, "listener stopped without shutdown request");
                 }
             }
             Ok((name, Err(error))) => {
                 tracing::error!(listener = name, %error, "listener stopped unexpectedly");
-                state.readiness.mark(name, false);
+                readiness.mark(name, false);
             }
             Err(error) => {
                 tracing::error!(%error, "listener task panicked");
             }
         }
     }
-    let _ = thrift_signal.await;
-    thrift_handle.join();
-    Ok(())
 }
 
 pub(crate) fn healthcheck() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -308,5 +321,54 @@ pub(crate) async fn shutdown_signal() {
     #[cfg(not(unix))]
     {
         let _ = tokio::signal::ctrl_c().await;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn unexpected_listener_exit_marks_readiness_unready() {
+        let readiness = Readiness::with_required(["http".to_owned()]);
+        readiness.mark("http", true);
+        let shutdown_requested = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let mut tasks = JoinSet::new();
+        tasks.spawn(async { ("http", Ok(())) });
+
+        supervise_listeners(tasks, shutdown_requested, readiness.clone()).await;
+
+        assert!(!readiness.is_ready());
+    }
+
+    #[tokio::test]
+    async fn listener_error_marks_readiness_unready() {
+        let readiness = Readiness::with_required(["grpc".to_owned()]);
+        readiness.mark("grpc", true);
+        let shutdown_requested = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let mut tasks = JoinSet::new();
+        tasks.spawn(async {
+            (
+                "grpc",
+                Err::<(), Box<dyn std::error::Error + Send + Sync>>("listener failed".into()),
+            )
+        });
+
+        supervise_listeners(tasks, shutdown_requested, readiness.clone()).await;
+
+        assert!(!readiness.is_ready());
+    }
+
+    #[tokio::test]
+    async fn graceful_listener_exit_keeps_readiness_during_shutdown() {
+        let readiness = Readiness::with_required(["http".to_owned()]);
+        readiness.mark("http", true);
+        let shutdown_requested = Arc::new(std::sync::atomic::AtomicBool::new(true));
+        let mut tasks = JoinSet::new();
+        tasks.spawn(async { ("http", Ok(())) });
+
+        supervise_listeners(tasks, shutdown_requested, readiness.clone()).await;
+
+        assert!(readiness.is_ready());
     }
 }
