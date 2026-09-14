@@ -1,4 +1,5 @@
 pub(crate) const INDEX_HTML: &str = include_str!(concat!(env!("OUT_DIR"), "/index.html"));
+pub(crate) const OPENAPI_HTML: &str = include_str!(concat!(env!("OUT_DIR"), "/openapi.html"));
 pub(crate) const GRPC_DESCRIPTOR_SET: &[u8] =
     include_bytes!(concat!(env!("OUT_DIR"), "/biubin_descriptor.bin"));
 

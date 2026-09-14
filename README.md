@@ -14,7 +14,7 @@ Then open <http://127.0.0.1:8080/> or run:
 
 ```sh
 curl http://127.0.0.1:8080/healthz
-curl http://127.0.0.1:8080/http/anything/example
+curl http://127.0.0.1:8080/anything/example
 ```
 
 The default Compose file starts one `biubin` service container:
@@ -58,17 +58,38 @@ Useful endpoints and listeners:
 - `/api/v1/capabilities` returns a JSON document whose endpoint entries normally
   use a `methods` array; single-method entries contain one value, and `*`
   means any method or protocol operation. The current pre-release capabilities
-  schema is version `1`. An optional `same_contract_as` field points to an endpoint with
-  the same response contract: the JSON shape and echo behavior match, while
-  request-derived fields such as `uri` may differ between paths.
-- Root request-echo endpoints are available at `GET/HEAD /get`, `POST /post`,
+  schema is version `1`. HTTP fixture entries are generated from the same
+  endpoint metadata used by `/openapi.json`.
+- HTTPBin-style HTTP fixtures use the root namespace. Request-echo endpoints are
+  available at `GET/HEAD /get`, `POST /post`,
   `PUT /put`, `PATCH /patch`, `DELETE /delete`, and any method on `/anything`,
   `/anything/`, or an arbitrary `/anything/...` subpath. These endpoints return
   BiuBin's request-echo JSON; method-specific endpoints reject other methods
-  with `405`. This root request-echo namespace is reserved for these routes;
-  `/http/anything`, `/http/anything/`, and `/http/anything/...` remain the
-  stable BiuBin-specific API for future fixture expansion. Both namespaces use
-  the same BiuBin request-echo JSON contract.
+  with `405`.
+- Additional HTTP fixtures include `/status/{code}`, `/headers`, `/ip`,
+  `/user-agent`, `/delay/{seconds}`, `/redirect/{count}`,
+  `/redirect-to`, `/bytes/{n}`, `/stream-bytes/{n}`, `/range/{n}`,
+  `/gzip`, `/deflate`, `/basic-auth/{user}/{password}`,
+  `/response-headers`, `/cookies`, `/cache`, `/cache/{seconds}`,
+  `/etag/{value}`, `/json`, `/html`, `/xml`, `/encoding/utf8`,
+  `/drip`, `/unstable`, and `/bearer`.
+- `/redirect-to` accepts relative targets by default. Absolute targets are
+  disabled unless `BIUBIN_HTTP_ALLOW_EXTERNAL_REDIRECTS=true`; enabled
+  absolute targets are limited to HTTP(S), 2048 bytes, and non-local literal
+  addresses.
+- Media fixtures are available at `/image`, `/image/png`,
+  `/image/jpeg`, `/image/svg`, `/image/webp`, `/video`,
+  `/video/mp4`, and `/video/webm`. Media fixtures, `/bytes/{n}`, and
+  `/range/{n}` support `Accept-Ranges: bytes` and single-byte-range requests;
+  image, video, and audio fixtures expose the same Range/HEAD behavior.
+- Audio fixtures are available at `/audio`, `/audio/wav`, and `/audio/mp3`.
+  The default WAV/MP3 resources are deterministic three-second test tones.
+- Media files are embedded from `crates/app/assets` at compile time. To
+  regenerate the deterministic fixtures locally, run
+  `scripts/generate-media-fixtures.sh` (requires `ffmpeg` and `cwebp`).
+- Interactive HTTP documentation is available at `/openapi`; the raw
+  OpenAPI 3.0 document is at `/openapi.json`. The documentation UI uses
+  the bundled Scalar API Reference and works without public-network access.
 - HTTP, WebSocket, SSE and GraphQL HTTP are on `8080`; GraphQL subscriptions use `ws://127.0.0.1:8080/graphql/ws`.
 - gRPC h2c is on `9000`; optional gRPC TLS/mTLS is on `9001`; TCP/UDP echo is on `7000`/`7001`; Thrift binary is on `9090`.
 - Socket fault behavior is deterministic and configuration-driven: `BIUBIN_TCP_DELAY_MS`, `BIUBIN_TCP_CLOSE_AFTER` (0 means keep open), `BIUBIN_TCP_READ_LIMIT`, `BIUBIN_UDP_DELAY_MS`, and `BIUBIN_UDP_DROP_PERCENT` (periodic 100-packet schedule).
@@ -124,9 +145,13 @@ cargo run -p biubin --example grpc_smoke -- 127.0.0.1 9001 mtls \
   certs/dev/ca.pem certs/dev/client.pem certs/dev/client-key.pem
 ```
 
-`/http/bytes/{n}` returns byte `index % 251` for each zero-based byte index;
-`/http/stream-bytes/{n}` uses the same sequence in fixed 16 KiB chunks. Both
+`/bytes/{n}` returns byte `index % 251` for each zero-based byte index;
+`/stream-bytes/{n}` uses the same sequence in fixed 16 KiB chunks. Both
 endpoints reject values above `BIUBIN_MAX_BYTES_RESPONSE`.
+
+`/drip` emits data over the requested duration. A zero duration means immediate
+output and is coalesced into one chunk even if `chunk_size=1`; positive
+durations honor the requested chunk size (clamped to the service limit).
 
 The development HTTP control plane is same-origin only: biubin does not add
 open CORS headers, does not validate WebSocket `Origin`, and does not trust

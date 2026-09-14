@@ -498,6 +498,7 @@ dependencies = [
  "biubin-core",
  "flate2",
  "futures-util",
+ "httpdate",
  "prost",
  "protoc-bin-vendored",
  "rumqttc",
@@ -517,6 +518,7 @@ dependencies = [
  "tower",
  "tracing",
  "tracing-subscriber",
+ "url",
 ]
 
 [[package]]

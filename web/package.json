@@ -9,6 +9,7 @@
     "dev": "vite"
   },
   "dependencies": {
+    "@scalar/api-reference": "^1.68.0",
     "mqtt": "^5.10.4",
     "svelte": "^5.33.0"
   },

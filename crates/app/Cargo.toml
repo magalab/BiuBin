@@ -17,6 +17,7 @@ base64 = "0.22"
 biubin-core = { path = "../core" }
 flate2 = "1"
 futures-util = "0.3"
+httpdate = "1"
 prost.workspace = true
 rumqttd.workspace = true
 rustls-pemfile.workspace = true
@@ -31,6 +32,7 @@ tonic-prost.workspace = true
 tonic-reflection.workspace = true
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+url = "2"
 
 [build-dependencies]
 protoc-bin-vendored = "3"

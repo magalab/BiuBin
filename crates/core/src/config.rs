@@ -55,6 +55,7 @@ pub struct Config {
     pub tls_cert_path: String,
     pub tls_key_path: String,
     pub tls_client_ca_path: String,
+    pub http_allow_external_redirects: bool,
     pub http_body_limit: usize,
     pub max_bytes_response: usize,
     pub event_capacity: usize,
@@ -83,6 +84,7 @@ impl Default for Config {
             tls_cert_path: "certs/dev/server.pem".to_owned(),
             tls_key_path: "certs/dev/server-key.pem".to_owned(),
             tls_client_ca_path: "certs/dev/ca.pem".to_owned(),
+            http_allow_external_redirects: false,
             http_body_limit: 2 * 1024 * 1024,
             max_bytes_response: 10 * 1024 * 1024,
             event_capacity: 200,
@@ -117,6 +119,10 @@ impl Config {
         config.tls_cert_path = env_or("BIUBIN_TLS_CERT_PATH", config.tls_cert_path);
         config.tls_key_path = env_or("BIUBIN_TLS_KEY_PATH", config.tls_key_path);
         config.tls_client_ca_path = env_or("BIUBIN_TLS_CLIENT_CA_PATH", config.tls_client_ca_path);
+        config.http_allow_external_redirects = parse_bool_env(
+            "BIUBIN_HTTP_ALLOW_EXTERNAL_REDIRECTS",
+            config.http_allow_external_redirects,
+        )?;
         config.ports.http = parse_env("BIUBIN_HTTP_PORT", config.ports.http)?;
         config.ports.grpc_h2c = parse_env("BIUBIN_GRPC_H2C_PORT", config.ports.grpc_h2c)?;
         config.ports.grpc_tls = parse_env("BIUBIN_GRPC_TLS_PORT", config.ports.grpc_tls)?;

@@ -17,18 +17,25 @@ fn main() {
     );
     let web_dir = manifest_dir.join("../../web");
     let built_index = web_dir.join("dist/index.html");
+    let built_openapi = web_dir.join("dist/openapi.html");
     let fallback_index = web_dir.join("fallback.html");
     let index = if built_index.is_file() {
         built_index
     } else {
         fallback_index
     };
-    let embedded_index = std::fs::read_to_string(&index)
-        .unwrap_or_else(|error| panic!("read embedded web index {}: {error}", index.display()));
-    let embedded_path =
-        std::path::PathBuf::from(std::env::var_os("OUT_DIR").expect("OUT_DIR")).join("index.html");
-    std::fs::write(&embedded_path, embedded_index)
-        .unwrap_or_else(|error| panic!("write embedded web index: {error}"));
+    let openapi = if built_openapi.is_file() {
+        built_openapi
+    } else {
+        web_dir.join("fallback.html")
+    };
+    let out_dir = std::path::PathBuf::from(std::env::var_os("OUT_DIR").expect("OUT_DIR"));
+    for (source, name) in [(&index, "index.html"), (&openapi, "openapi.html")] {
+        let embedded = std::fs::read_to_string(source)
+            .unwrap_or_else(|error| panic!("read embedded web page {}: {error}", source.display()));
+        std::fs::write(out_dir.join(name), embedded)
+            .unwrap_or_else(|error| panic!("write embedded web page {name}: {error}"));
+    }
     let assets_dir =
         std::path::PathBuf::from(std::env::var_os("OUT_DIR").expect("OUT_DIR")).join("web-assets");
     let _ = std::fs::remove_dir_all(&assets_dir);
@@ -56,6 +63,7 @@ fn main() {
     std::fs::write(&asset_source_path, asset_source)
         .unwrap_or_else(|error| panic!("write embedded web assets source: {error}"));
     println!("cargo:rerun-if-changed=../../web/index.html");
+    println!("cargo:rerun-if-changed=../../web/openapi.html");
     println!("cargo:rerun-if-changed=../../web/fallback.html");
     println!("cargo:rerun-if-changed=../../web/dist");
 }

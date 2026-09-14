@@ -42,7 +42,7 @@
   let loadError = '';
   let copyNotice = '';
   let busy = false;
-  let httpPath = '/http/anything/from-the-browser?source=biubin';
+  let httpPath = '/anything/from-the-browser?source=biubin';
   let httpResult = '';
   let graphqlQuery = '{ echo(input: { message: "hello from GraphQL", repeat: 2 }) { message repeated } }';
   let graphqlVariables = '{}';
@@ -276,8 +276,9 @@
       <div class="link-stack">
         <a href="/api/v1/info" target="_blank">info API ↗</a>
         <a href="/api/v1/capabilities" target="_blank">capabilities ↗</a>
+        <a href="/openapi" target="_blank">OpenAPI docs ↗</a>
         <a href="/graphql" target="_blank">GraphQL endpoint ↗</a>
-        <button class="text-button" onclick={() => copy(`curl ${window.location.origin}/http/anything/demo`)}>copy curl</button>
+        <button class="text-button" onclick={() => copy(`curl ${window.location.origin}/anything/demo`)}>copy curl</button>
       </div>
       {#if copyNotice}<small class="copy-notice">{copyNotice}</small>{/if}
     </article>

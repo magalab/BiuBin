@@ -159,8 +159,38 @@ wait_for_port "$mqtt_tls_port"
 
 curl --fail --silent --show-error "http://127.0.0.1:$http_port/healthz" >/dev/null
 curl --fail --silent --show-error "http://127.0.0.1:$http_port/" | grep -q "biubin"
-curl --fail --silent --show-error "http://127.0.0.1:$http_port/http/bytes/64" -o "$tmp_dir/bytes"
+curl --fail --silent --show-error "http://127.0.0.1:$http_port/bytes/64" -o "$tmp_dir/bytes"
 test "$(wc -c <"$tmp_dir/bytes" | tr -d ' ')" = 64
+status_code="$(curl --silent --show-error -o /dev/null -w '%{http_code}' "http://127.0.0.1:$http_port/status/418")"
+test "$status_code" = 418
+curl --fail --silent --show-error "http://127.0.0.1:$http_port/image/png" -o "$tmp_dir/image.png"
+head -c 4 "$tmp_dir/image.png" | cmp -s - <(printf '\x89PNG')
+image_range_status="$(curl --silent --show-error -o "$tmp_dir/image-range" -w '%{http_code}' \
+    -H 'Range: bytes=0-9' "http://127.0.0.1:$http_port/image/png")"
+test "$image_range_status" = 206
+test "$(wc -c <"$tmp_dir/image-range" | tr -d ' ')" = 10
+curl --fail --silent --show-error "http://127.0.0.1:$http_port/video/mp4" -o "$tmp_dir/video.mp4"
+head -c 8 "$tmp_dir/video.mp4" | grep -q "ftyp"
+curl --fail --silent --show-error "http://127.0.0.1:$http_port/audio/wav" -o "$tmp_dir/audio.wav"
+head -c 4 "$tmp_dir/audio.wav" | grep -q "RIFF"
+curl --fail --silent --show-error "http://127.0.0.1:$http_port/openapi.json" | grep -q '"openapi":"3.0.3"'
+curl --fail --silent --show-error "http://127.0.0.1:$http_port/openapi" -o "$tmp_dir/openapi.html"
+grep -Eq '/assets/|/openapi.json' "$tmp_dir/openapi.html"
+curl --fail --silent --show-error "http://127.0.0.1:$http_port/response-headers?X-Test=blackbox" -D "$tmp_dir/response-headers" -o /dev/null
+grep -qi '^x-test: blackbox' "$tmp_dir/response-headers"
+forbidden_header_status="$(curl --silent --show-error -o /dev/null -w '%{http_code}' \
+    "http://127.0.0.1:$http_port/response-headers?Content-Type=text%2Fplain")"
+test "$forbidden_header_status" = 400
+redirect_status="$(curl --silent --show-error -o /dev/null -w '%{http_code}' \
+    "http://127.0.0.1:$http_port/redirect-to?url=https%3A%2F%2Fexample.com%2Ftarget")"
+test "$redirect_status" = 400
+curl --fail --silent --show-error "http://127.0.0.1:$http_port/cache" -D "$tmp_dir/cache-headers" -o /dev/null
+cache_etag="$(awk 'BEGIN{IGNORECASE=1} /^etag:/ {sub(/^[^:]*:[[:space:]]*/, ""); print; exit}' "$tmp_dir/cache-headers" | tr -d '\r')"
+cache_status="$(curl --silent --show-error -o /dev/null -w '%{http_code}' -H "If-None-Match: $cache_etag" "http://127.0.0.1:$http_port/cache")"
+test "$cache_status" = 304
+range_status="$(curl --silent --show-error -o "$tmp_dir/range" -w '%{http_code}' -H 'Range: bytes=2-5' "http://127.0.0.1:$http_port/range/32")"
+test "$range_status" = 206
+test "$(wc -c <"$tmp_dir/range" | tr -d ' ')" = 4
 curl --fail --silent --show-error -N --max-time 5 \
     "http://127.0.0.1:$http_port/sse/ticker?interval_ms=10&count=2" \
     | grep -q "id: 2"

@@ -14,7 +14,7 @@ cargo run --bin biubin -p biubin
 
 ```sh
 curl http://127.0.0.1:8080/healthz
-curl http://127.0.0.1:8080/http/anything/example
+curl http://127.0.0.1:8080/anything/example
 ```
 
 默认的 Compose 文件会启动一个 `biubin` 服务容器：
@@ -52,16 +52,35 @@ TCP/UDP echo、GraphQL、Thrift，以及一个可选的内置 MQTT Broker。MQTT
 - `GET /api/v1/info` 和 `GET /api/v1/capabilities` 用于描述正在运行的服务。
 - `/api/v1/capabilities` 返回描述服务的 JSON 文档。端点条目通常使用单个
   `methods` 数组；单方法端点包含一个值，`*` 表示任意方法或协议操作。
-  当前仍为预发布阶段，capabilities schema 版本为 `1`。可选的 `same_contract_as` 字段指向
-  具有相同响应契约的另一个端点：JSON 结构和回显行为一致，但 `uri` 等依赖
-  请求路径的字段可能不同。
+  当前仍为预发布阶段，capabilities schema 版本为 `1`。HTTP fixture
+  条目和 `/openapi.json` 使用同一份 endpoint metadata。
 - 根路径提供请求回显端点：`GET/HEAD /get`、`POST /post`、`PUT /put`、
   `PATCH /patch`、`DELETE /delete`，以及支持任意方法的 `/anything`、
   `/anything/` 和任意 `/anything/...` 子路径。这些端点返回 BiuBin 自有的
-  请求回显 JSON；方法专用端点使用其他方法时返回 `405`。根路径请求回显
-  命名空间专用于这些端点；`/http/anything`、`/http/anything/` 以及
-  `/http/anything/...` 仍作为稳定的 BiuBin 专用 API，供未来扩展 fixture
-  使用。两个命名空间使用相同的 BiuBin 请求回显 JSON 契约。
+  请求回显 JSON；方法专用端点使用其他方法时返回 `405`。
+- HTTP fixture 统一使用根路径，包括 `/status/{code}`、`/headers`、
+  `/ip`、`/user-agent`、`/delay/{seconds}`、`/redirect/{count}`、
+  `/redirect-to`、`/bytes/{n}`、`/stream-bytes/{n}`、`/range/{n}`、
+  `/gzip`、`/deflate`、`/basic-auth/{user}/{password}`、
+  `/response-headers`、`/cookies`、`/cache`、`/cache/{seconds}`、
+  `/etag/{value}`、`/json`、`/html`、`/xml`、`/encoding/utf8`、
+  `/drip`、`/unstable` 和 `/bearer`。
+- `/redirect-to` 默认只允许相对 URL。设置
+  `BIUBIN_HTTP_ALLOW_EXTERNAL_REDIRECTS=true` 后才允许绝对 URL；绝对 URL
+  仅支持 HTTP(S)，长度不超过 2048 字节，且会拒绝本地字面量地址。
+- 媒体 fixture 位于 `/image`、`/image/png`、`/image/jpeg`、
+  `/image/svg`、`/image/webp`、`/video`、`/video/mp4` 和
+  `/video/webm`。媒体 fixture、`/bytes/{n}` 和 `/range/{n}` 支持
+  `Accept-Ranges: bytes` 及单段 byte range 请求；图片、视频和音频 fixture
+  统一支持 Range/HEAD 行为。
+- 音频 fixture 位于 `/audio`、`/audio/wav` 和 `/audio/mp3`；默认 WAV/MP3
+  是确定性的 3 秒测试音调。
+- 媒体文件位于 `crates/app/assets`，编译时通过 `include_bytes!` 嵌入服务。
+  如需重新生成确定性 fixture，可运行
+  `scripts/generate-media-fixtures.sh`（需要 `ffmpeg` 和 `cwebp`）。
+- 交互式 HTTP 文档位于 `/openapi`，原始 OpenAPI 3.0 文档位于
+  `/openapi.json`。文档 UI 使用随服务打包的 Scalar API Reference，
+  无公网访问也可使用。
 - HTTP、WebSocket、SSE 和 GraphQL HTTP 使用 `8080`；GraphQL subscription 使用
   `ws://127.0.0.1:8080/graphql/ws`。
 - gRPC h2c 使用 `9000`；可选的 gRPC TLS/mTLS 使用 `9001`；TCP/UDP echo
@@ -132,9 +151,13 @@ cargo run -p biubin --example grpc_smoke -- 127.0.0.1 9001 mtls \
   certs/dev/ca.pem certs/dev/client.pem certs/dev/client-key.pem
 ```
 
-`/http/bytes/{n}` 为每个从零开始的字节索引返回 `index % 251`；
-`/http/stream-bytes/{n}` 使用相同序列，并以固定的 16 KiB chunk 返回。两个
+`/bytes/{n}` 为每个从零开始的字节索引返回 `index % 251`；
+`/stream-bytes/{n}` 使用相同序列，并以固定的 16 KiB chunk 返回。两个
 端点都会拒绝超过 `BIUBIN_MAX_BYTES_RESPONSE` 的值。
+
+`/drip` 按请求的 duration 输出数据。duration 为 0 表示立即输出，此时即使
+`chunk_size=1` 也会合并为一个 chunk；正数 duration 才按请求的 chunk size
+输出（并受服务上限限制）。
 
 开发用 HTTP 控制面仅允许同源访问：biubin 不添加开放 CORS header、不校验
 WebSocket `Origin`，也不信任 `X-Forwarded-For`；部署在代理后面时必须由代理
