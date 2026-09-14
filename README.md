@@ -136,6 +136,9 @@ are not included in the runtime image; run the same checks locally with
 `BIUBIN_EXTERNAL_SMOKE=1 bash scripts/blackbox.sh` after installing those
 clients and the Thrift compiler.
 
+The tested client/tool scope and explicit non-goals are recorded in the
+[protocol compatibility matrix](docs/compatibility-matrix.md).
+
 GraphQL HTTP example:
 
 ```sh

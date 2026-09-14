@@ -141,6 +141,9 @@ CI 还会使用 `grpcurl`、`mosquitto_pub/sub` 和 Apache Thrift 生成的 Node
 安装对应工具及 Thrift compiler 后，可运行
 `BIUBIN_EXTERNAL_SMOKE=1 bash scripts/blackbox.sh` 执行同一组检查。
 
+当前已验证的客户端/工具范围，以及明确未承诺的能力，记录在
+[协议兼容性矩阵](docs/compatibility-matrix.md)中。
+
 GraphQL HTTP 示例：
 
 ```sh
