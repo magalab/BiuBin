@@ -74,14 +74,14 @@ curl --fail --silent --show-error http://127.0.0.1:8080/audio/wav >/dev/null
 range_headers="$(curl --silent --show-error --max-time 5 \
   -H 'Range: bytes=0-31' -D - -o /dev/null \
   http://127.0.0.1:8080/image/png)"
-if ! printf '%s\n' "$range_headers" | rg -q '^HTTP/[^ ]+ 206 '; then
+if ! printf '%s\n' "$range_headers" | grep -Eq '^HTTP/[^ ]+ 206 '; then
   echo "image range request did not return 206" >&2
   exit 1
 fi
 
 tls_output="$(openssl s_client -connect 127.0.0.1:9001 \
   -CAfile certs/dev/ca.pem -verify_return_error -brief </dev/null 2>&1 || true)"
-if ! printf '%s\n' "$tls_output" | rg -q 'Verification: OK'; then
+if ! printf '%s\n' "$tls_output" | grep -q 'Verification: OK'; then
   echo "gRPC TLS listener did not complete certificate verification" >&2
   printf '%s\n' "$tls_output" >&2
   exit 1
