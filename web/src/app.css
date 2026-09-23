@@ -17,6 +17,8 @@ main { max-width: 1240px; margin: 0 auto; padding: 46px 28px 32px; }
 h1, h2, p { margin-top: 0; }
 h1 { font-size: clamp(48px, 9vw, 92px); letter-spacing: -.08em; line-height: .9; margin: 0 0 18px; }
 h1 span { color: #ffb86b; }
+.brand-lockup { display: flex; align-items: center; gap: 18px; }
+.brand-mark { width: clamp(58px, 8vw, 84px); aspect-ratio: 1; flex: 0 0 auto; padding: 6px; background: #f0eadf; border: 1px solid #d8cfbf; border-radius: 24px; object-fit: contain; filter: drop-shadow(0 12px 22px #00000035); }
 h2 { font-size: 20px; letter-spacing: -.025em; margin-bottom: 18px; }
 .lede { color: #9aa8b5; max-width: 490px; font-size: 16px; }
 .status-card { display: flex; align-items: center; gap: 11px; border: 1px solid #3a4148; border-radius: 14px; padding: 13px 16px; min-width: 190px; background: #171d22cc; }

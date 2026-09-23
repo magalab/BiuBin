@@ -13,7 +13,7 @@ async-stream = "0.3"
 async-graphql.workspace = true
 async-graphql-axum.workspace = true
 axum = { version = "0.8", features = ["ws"] }
-base64 = "0.22"
+base64 = "0.23"
 biubin-core = { path = "../core" }
 flate2 = "1"
 futures-util = "0.3"

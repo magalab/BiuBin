@@ -6,6 +6,7 @@ test('loads the homepage and its control plane', async ({ page }) => {
   await page.goto('/');
 
   await expect(page).toHaveTitle(/biubin/);
+  await expect(page.locator('img.brand-mark')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Every protocol, one process' })).toBeVisible();
   await expect(page.getByText('ready', { exact: true })).toBeVisible();
   await expect(page.getByRole('link', { name: 'OpenAPI docs ↗' })).toBeVisible();

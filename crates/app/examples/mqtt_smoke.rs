@@ -22,6 +22,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client_cert_path = args.next();
     let client_key_path = args.next();
 
+    if transport == "tls" {
+        let _ = tokio_rustls::rustls::crypto::ring::default_provider().install_default();
+    }
+
     let mut options = if transport == "ws" {
         MqttOptions::new("biubin-smoke", format!("ws://{host}:{port}/mqtt"), port)
     } else {

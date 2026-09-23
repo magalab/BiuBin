@@ -241,7 +241,10 @@
   <header class="hero">
     <div>
       <p class="eyebrow">LOCAL-FIRST PROTOCOL FIXTURE</p>
-      <h1>biubin<span>•</span></h1>
+      <div class="brand-lockup">
+        <img src="/logo.png" alt="" class="brand-mark" />
+        <h1>biubin<span>•</span></h1>
+      </div>
       <p class="lede">A small, deterministic playground for clients, SDKs, gateways and proxies.</p>
     </div>
     <div class="status-card" class:ready={info?.ready}>

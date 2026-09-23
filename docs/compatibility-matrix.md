@@ -11,7 +11,7 @@ claim of exhaustive protocol conformance.
 | HTTP / WebSocket / SSE / OpenAPI UI | Chromium via Playwright | Smoke-tested | `web/tests/browser-smoke.spec.ts` | same-origin page, HTTP call, WS echo, SSE ticker, Scalar grouping |
 | gRPC h2c, TLS and mTLS | Rust `tonic` smoke client | Smoke-tested | `crates/app/examples/grpc_smoke.rs` | unary, server/client/bidi streaming, metadata, status/trailer and TLS modes |
 | gRPC reflection | `grpcurl` 1.9.3 | Smoke-tested in CI | `BIUBIN_EXTERNAL_SMOKE=1 bash scripts/blackbox.sh` | service discovery over plaintext gRPC |
-| WebSocket | Rust `tokio-tungstenite` client | Smoke-tested | `crates/app/src/http` tests and browser smoke | echo and protocol upgrade behavior |
+| WebSocket echo | Chromium via Playwright | Smoke-tested | `web/tests/browser-smoke.spec.ts` | `/ws/echo` frame echo and browser protocol upgrade |
 | SSE | `curl` and browser `EventSource` | Smoke-tested | `scripts/blackbox.sh` and browser smoke | fixed events, ticker and cursor replay |
 | GraphQL HTTP / subscription | `curl` and Rust WebSocket client | Smoke-tested | `scripts/blackbox.sh` and `crates/app/examples/graphql_smoke.rs` | query, mutation, subscription and stable errors |
 | TCP / UDP | Rust integration client | Smoke-tested | `crates/app/tests/blackbox.rs` | line and length-prefixed TCP echo, UDP echo, ephemeral ports |

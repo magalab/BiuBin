@@ -20,6 +20,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let client_cert_path = args.next();
     let client_key_path = args.next();
 
+    if matches!(mode.as_str(), "tls" | "mtls") {
+        let _ = tokio_rustls::rustls::crypto::ring::default_provider().install_default();
+    }
+
     let scheme = if mode == "h2c" { "http" } else { "https" };
     let mut endpoint = Endpoint::from_shared(format!("{scheme}://{host}:{port}"))?
         .connect_timeout(Duration::from_secs(5));
